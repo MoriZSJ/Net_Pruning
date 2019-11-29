@@ -1,0 +1,6 @@
+# all data
+densenet_dataset/
+
+# unnecessary
+*.pyc
+*.jpg
