@@ -1,0 +1,38 @@
+网络基本架构：
+Unet：
+包含输入层/4个下采样层/4个上采样层/输出层
+下采样：
+	MaxPool：kernel_size = 2
+	double_conv: (conv(kernel_size=3, padding=1)  + BatchNorm + ReLU)X 2
+上采样：
+	upsample or ConvTranspose	（可调整）
+	double_conv: (conv(kernel_size=3, padding=1)  + BatchNorm + ReLU)X 2
+通道数变化：1->64->128->256->512->512->256->128->64->64->num_classes	（可调整）
+
+
+训练参数：
+目前共训练260 epochs
+batchsize = 10
+lr = 0.005 (0.05->0.01->0.005)
+model = CP260.pth(./test)
+downscaling of the images = 0.5
+
+
+参考训练命令：
+python train.py --load CP260.pth -l 0.005 -e 50
+参考测试命令：
+python predict.py --model CP260.pth -i image.jpg 
+
+训练集数据：
+D:\dataset\img 1044 256x256 图像
+D:\dataset\graylabel  1044 256x256 mask
+存在mask ：不存在mask = 4：1
+
+测试集数据：
+D:\testDataset\img
+
+
+下一步工作：
+减少误检测： 右上角 + 气泡
+	增加对应负样本数量比例
+	
