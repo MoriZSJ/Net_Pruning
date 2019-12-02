@@ -5,10 +5,22 @@ import numpy as np
 def get_square(img, pos):
     """Extract a left or a right square from ndarray shape : (H, W, C))"""
     h = img.shape[0]
-    if pos == 0:
-        return img[:, :h]
+    sw = img.shape[1]
+
+    if sw <= h :
+        return img
+    elif sw <= h*2:
+        if pos == 0:
+            return img[:, :h]
+        else:
+            return img[:, -h:]
     else:
-        return img[:, -h:]
+        if pos == 0:
+            return img[:, :h]
+        else:
+            return img[:, h:]
+
+        
 
 def split_img_into_squares(img):
     return get_square(img, 0), get_square(img, 1)
@@ -58,8 +70,14 @@ def merge_masks(img1, img2, full_w):
     h = img1.shape[0]
 
     new = np.zeros((h, full_w), np.float32)
-    new[:, :full_w // 2 + 1] = img1[:, :full_w // 2 + 1]
-    new[:, full_w // 2 + 1:] = img2[:, -(full_w // 2 - 1):]
+    if full_w <= h :
+        new = img1
+    elif full_w <= h*2 :
+        new[:, :full_w // 2 + 1] = img1[:, :full_w // 2 + 1]
+        new[:, full_w // 2 + 1:] = img2[:, -((full_w+1) // 2 -1):]
+    else:
+        new[:,:h] = img1[:,:]
+        new[:,h:] = img2[:,:]
 
     return new
 

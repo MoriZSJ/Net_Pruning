@@ -4,3 +4,7 @@ densenet_dataset/
 # unnecessary
 *.pyc
 *.jpg
+*.png
+
+# tfevents
+events.out.*

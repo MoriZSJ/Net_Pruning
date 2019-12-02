@@ -1,19 +1,37 @@
 import sys
 import os
+import time
 from optparse import OptionParser
 import numpy as np
-
+import pdb
 import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 from torch import optim
-
+import shutil
 from eval import eval_net
 from unet import UNet
 from utils import get_ids, split_ids, split_train_val, get_imgs_and_masks, batch
-dir_checkpoint = 'C:\\Users\\fs\\Desktop\\pytorch_Unet2\\checkpoints\\'
-best_prec1=2
-best_val_dice=0
+from tensorboard_logger import configure,log_value
+from tqdm import tqdm
+
+####### set directory ###########
+dir_model = './fullmodel/'
+if not os.path.exists(dir_model):
+    os.makedirs(dir_model)
+ct = time.localtime(time.time())
+directory = "./bestcheckpoint/"
+directory = os.path.join(directory, "%04d-%02d-%02d, %02d:%02d:%02d_bce+dice/" %
+                                                (ct.tm_year, ct.tm_mon, ct.tm_mday, ct.tm_hour, ct.tm_min, ct.tm_sec))
+if not os.path.exists(directory):
+    os.makedirs(directory)
+configurepath = directory
+configure(configurepath)
+
+best_dice = 0
+best_loss = 10
+
+
 def train_net(net,
               epochs=5,
               batch_size=1,
@@ -23,17 +41,17 @@ def train_net(net,
               gpu=False,
               img_scale=0.5):
 
+    global best_dice, best_loss
+    dir_img = '/home/mori/Programming/Net_Pruning/unetdataset_patchImg/img/'
+    dir_mask = '/home/mori/Programming/Net_Pruning/unetdataset_patchImg/graylabel/'
 
-    dir_img = 'F:\\shunmei\\0784_new\\little_image\\'
-    dir_mask = 'F:\\shunmei\\0784_new\\little_label\\'
 
-
-    ids = get_ids(dir_img)
+    ids = get_ids(dir_img)  # get file name (without .png)
     print("ids:{}".format(ids))
     
-    ids = split_ids(ids)
+    ids = split_ids(ids)  # 重采样？
     print("ids:{}".format(ids))
-    iddataset = split_train_val(ids, val_percent)
+    iddataset = split_train_val(ids, val_percent) # 按给定比例划分打乱的数据集
 
     print('''
     Starting training:
@@ -48,7 +66,7 @@ def train_net(net,
                len(iddataset['val']), str(save_cp), str(gpu)))
 
     N_train = len(iddataset['train'])
-    print("N_trian:{}".format(N_train))
+    print("N_train:{}".format(N_train))
     optimizer = optim.SGD(net.parameters(),
                           lr=lr,
                           momentum=0.9,
@@ -83,6 +101,7 @@ def train_net(net,
             masks_probs_flat = masks_pred.view(-1)
 
             true_masks_flat = true_masks.view(-1)
+            true_masks_flat = true_masks_flat/255
 
             loss = criterion(masks_probs_flat, true_masks_flat)
             epoch_loss += loss.item()
@@ -96,27 +115,25 @@ def train_net(net,
 
         print('Epoch finished ! Loss: {}'.format(epoch_loss / i))
 
-        if 1:
-            val_dice = eval_net(net, val, gpu)
-            global best_val_dice
-            is_best = best_val_dice < val_dice
-            best_val_dice = max(val_dice, best_val_dice)
-            if is_best:
-                torch.save(net.state_dict(), dir_checkpoint+'M_best.pth')
-                torch.save(net, dir_checkpoint+'0_M_best.pth')
-            print('Validation Dice Coeff: {}'.format(val_dice))
+        val_dice = eval_net(net, val, gpu)
+        print('Validation Dice Coeff: {}'.format(val_dice))
+        log_value('val_dice', val_dice, (epoch+1))
+
 
         if save_cp:
-            global best_prec1
-            is_best = newloss < best_prec1
-            best_prec1 = min(newloss, best_prec1)
-            if is_best:
-                torch.save(net.state_dict(), dir_checkpoint+'best.pth')
-                torch.save(net, dir_checkpoint+'0best.pth')
-            torch.save(net.state_dict(),
-                       dir_checkpoint + 'CP{}.pth'.format(epoch + 1))
-
-            print('Checkpoint {} saved !'.format(epoch + 1))
+            #torch.save(net.state_dict(),dir_checkpoint + 'CP{}.pth'.format(epoch + 1))
+            #print('Checkpoint {} saved !'.format(epoch + 1))
+            dice_best = val_dice > best_dice
+            loss_best = epoch_loss / i < best_loss
+            best_dice = max(val_dice, best_dice)
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'state_dict': net.state_dict(),
+                'best_dice': best_dice,
+                'best_loss': best_loss, 
+            }, dice_best, loss_best)
+        
+    print('Best dice: ', best_dice)
 def adjust_learning_rate(optimizer, epoch,epochs):
     """Sets the learning rate to the initial LR decayed by 10 after 150 and 225 epochs"""
     # lr = args.lr * (0.1 ** (epoch // (20+epochs*0.1+0.12*epoch))*(4**((epoch // (20+epochs*0.1+0.12*epoch))//3)))
@@ -143,10 +160,19 @@ def adjust_learning_rate(optimizer, epoch,epochs):
     return lr
 
 
+def save_checkpoint(state, dice_best, loss_best, filename='checkpoint.pth'):
+    """Saves checkpoint to disk"""
+    filename = directory + filename
+    torch.save(state, filename)
+    if dice_best:
+        shutil.copyfile(filename,os.path.join(directory, 'dice_best.pth'))
+    if loss_best:
+        shutil.copyfile(filename,os.path.join(directory, 'loss_best.pth'))
+
 
 def get_args():
     parser = OptionParser()
-    parser.add_option('-e', '--epochs', dest='epochs', default=5, type='int',
+    parser.add_option('-e', '--epochs', dest='epochs', default=50, type='int',
                       help='number of epochs')
     parser.add_option('-b', '--batch-size', dest='batchsize', default=6,
                       type='int', help='batch size')
@@ -170,8 +196,17 @@ if __name__ == '__main__':
     net = UNet(n_channels=3, n_classes=1)
 
     if args.load:
-        net.load_state_dict(torch.load(args.load))
-        print('Model loaded from {}'.format(args.load))
+        if os.path.isfile(args.load):
+            print("=> loading checkpoint '{}'".format(args.load))
+            checkpoint = torch.load(args.load)
+            args.start_epoch = checkpoint['epoch']
+            best_dice = checkpoint['best_dice']
+            best_loss = checkpoint['best_loss']
+            net.load_state_dict(checkpoint['state_dict'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                    .format(args.load, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(args.load))
 
     if args.gpu:
         net.cuda()
@@ -186,7 +221,7 @@ if __name__ == '__main__':
                   img_scale=args.scale)
 
         torch.save(net,
-                    dir_checkpoint + 'CP{}.pth'.format(0))
+                    dir_model + 'CP{}.pth'.format(0))
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         print('Saved interrupt')

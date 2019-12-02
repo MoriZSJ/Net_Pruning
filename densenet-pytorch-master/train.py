@@ -56,8 +56,8 @@ parser.set_defaults(bottleneck=True)
 parser.set_defaults(augment=False)
 
 best_prec1 = 0
-train_dirs = 'D:\\densedataset\\threeclass\\train'
-val_dirs = 'D:\\densedataset\\threeclass\\val'
+train_dirs = '/home/mori/Programming/Net_Pruning/densenet_dataset/train'
+val_dirs = '/home/mori/Programming/Net_Pruning/densenet_dataset/val'
 def main():
     global args, best_prec1
     args = parser.parse_args()
