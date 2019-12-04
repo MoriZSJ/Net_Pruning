@@ -9,14 +9,19 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
+from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
 import densenet as dn
+from densenet import DenseNet3
 from focal_loss import FocalLoss
 import pdb
 # used for logging to TensorBoard
-from tensorboard_logger import configure, log_value
+# from tensorboard_logger import configure, log_value
+
+writer = SummaryWriter()
+
 
 parser = argparse.ArgumentParser(description='PyTorch DenseNet Training')
 parser.add_argument('--epochs', default=300, type=int,
@@ -50,7 +55,7 @@ parser.add_argument('--resume', default='', type=str,
 
 parser.add_argument('--name', default='DenseNet_focal_772_2', type=str,
                     help='name of experiment')
-parser.add_argument('--tensorboard',
+parser.add_argument('--tensorboard',default=True,
                     help='Log progress to TensorBoard', action='store_true')
 parser.set_defaults(bottleneck=True)
 parser.set_defaults(augment=False)
@@ -61,7 +66,7 @@ val_dirs = '/home/mori/Programming/Net_Pruning/densenet_dataset/val'
 def main():
     global args, best_prec1
     args = parser.parse_args()
-    if args.tensorboard: configure("runs/%s"%(args.name))
+    # if args.tensorboard: configure("runs/%s"%(args.name))
     
     # Data loading code
     normalize = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
@@ -131,7 +136,7 @@ def main():
 
     cudnn.benchmark = True
 
-    # define loss function (criterion) and pptimizer
+    # define loss function (criterion) and optimizer
     #criterion = nn.CrossEntropyLoss().cuda()
     criterion = FocalLoss().cuda()
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
@@ -157,6 +162,8 @@ def main():
             'best_prec1': best_prec1,
         }, is_best)
     print('Best accuracy: ', best_prec1)
+    writer.add_graph(model)  # image?
+
 
 def train(train_loader, model, criterion, optimizer, epoch):
     """Train for one epoch on the training set"""
@@ -203,10 +210,13 @@ def train(train_loader, model, criterion, optimizer, epoch):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})'.format(
                       epoch, i, len(train_loader), batch_time=batch_time,
                       loss=losses, top1=top1))
+    
+    writer.add_scalar('train_loss', losses.avg, epoch)
+    writer.add_scalar('train_acc', top1.avg, epoch)
     # log to TensorBoard
-    if args.tensorboard:
-        log_value('train_loss', losses.avg, epoch)
-        log_value('train_acc', top1.avg, epoch)
+    # if args.tensorboard:
+        # log_value('train_loss', losses.avg, epoch)
+        # log_value('train_acc', top1.avg, epoch)
 
 def validate(val_loader, model, criterion, epoch):
     """Perform validation on the validation set"""
@@ -247,9 +257,11 @@ def validate(val_loader, model, criterion, epoch):
 
     print(' * Prec@1 {top1.avg:.3f}'.format(top1=top1))
     # log to TensorBoard
-    if args.tensorboard:
-        log_value('val_loss', losses.avg, epoch)
-        log_value('val_acc', top1.avg, epoch)
+    # if args.tensorboard:
+    #     log_value('val_loss', losses.avg, epoch)
+    #     log_value('val_acc', top1.avg, epoch)
+    writer.add_scalar('val_loss', losses.avg, epoch)
+    writer.add_scalar('val_acc', top1.avg, epoch)
     return top1.avg
 
 
@@ -279,14 +291,13 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
-
-
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 after 150 and 225 epochs"""
     lr = args.lr * (0.1 ** (epoch // 150)) * (0.1 ** (epoch // 225))
     # log to TensorBoard
-    if args.tensorboard:
-        log_value('learning_rate', lr, epoch)
+    # if args.tensorboard:
+    #     log_value('learning_rate', lr, epoch)
+    writer.add_scalar('learning_rate', lr, epoch)
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
