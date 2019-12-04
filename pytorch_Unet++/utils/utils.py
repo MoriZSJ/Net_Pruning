@@ -50,10 +50,10 @@ def batch(iterable, batch_size):
         b.append(t)
         if (i + 1) % batch_size == 0:
             yield b
-            b = []
-
-    if len(b) > 0:
+            b = [] # valid!
+    if len(b) > 0: 
         yield b
+        # print("ahahahahahaha")
 
 def split_train_val(dataset, val_percent=0.05):
     dataset = list(dataset)

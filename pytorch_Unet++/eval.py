@@ -12,7 +12,7 @@ def eval_net(net, dataset, gpu=False):
         img = b[0]
         true_mask = b[1]
 
-        img = torch.from_numpy(img).unsqueeze(0)
+        img = torch.from_numpy(img).unsqueeze(0) #在0位置加1维
         true_mask = torch.from_numpy(true_mask).unsqueeze(0)
         true_mask = true_mask / 255
 

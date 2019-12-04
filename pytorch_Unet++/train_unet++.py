@@ -86,7 +86,7 @@ def train_net(net,
 
         epoch_loss = 0
 
-        for i, b in enumerate(batch(train, batch_size)):
+        for i, b in enumerate(batch(train, batch_size)):  # 手动分出batch
             imgs = np.array([i[0] for i in b]).astype(np.float32)
             true_masks = np.array([i[1] for i in b])
 
@@ -101,7 +101,7 @@ def train_net(net,
             masks_probs_flat = masks_pred.view(-1)
 
             true_masks_flat = true_masks.view(-1)
-            true_masks_flat = true_masks_flat/255
+            true_masks_flat = true_masks_flat/255  # 归一化
 
             loss = criterion(masks_probs_flat, true_masks_flat)
             epoch_loss += loss.item()
