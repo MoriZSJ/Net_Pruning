@@ -13,12 +13,11 @@ import shutil
 from eval import eval_net
 from unet import UNet
 from utils import get_ids, split_ids, split_train_val, get_imgs_and_masks, batch
-# from tensorboard_logger import configure,log_value
 from tqdm import tqdm
 
 ####### set directory ###########
 ##### 1. save for tensorboard ###
-directory = './runs/'
+directory = 'runs/'
 ct = time.localtime(time.time())
 directory = os.path.join(directory, "%04d-%02d-%02d, %02d:%02d:%02d_bce+dice/" %
                                                 (ct.tm_year, ct.tm_mon, ct.tm_mday, ct.tm_hour, ct.tm_min, ct.tm_sec))
@@ -28,12 +27,9 @@ writer = SummaryWriter(directory)
 
 
 #### 2. save model #####
-dir_model = './fullmodel/'
+dir_model = 'fullmodel/'
 if not os.path.exists(dir_model):
     os.makedirs(dir_model)
-
-# configurepath = directory
-# configure(configurepath)
 
 best_dice = 0
 best_loss = 10
@@ -161,9 +157,6 @@ def adjust_learning_rate(optimizer, epoch,epochs):
     elif epoch>int(epochs*0.95):
         lr = args.lr*0.001
 
-    # log to TensorBoard
-    # if args.tensorboard:
-    #     log_value('learning_rate', lr, epoch)
     writer.add_scalar('learning_rate', lr, epoch)
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
@@ -182,7 +175,7 @@ def save_checkpoint(state, dice_best, loss_best, filename='checkpoint.pth'):
 
 def get_args():
     parser = OptionParser()
-    parser.add_option('-e', '--epochs', dest='epochs', default=50, type='int',
+    parser.add_option('-e', '--epochs', dest='epochs', default=1, type='int',
                       help='number of epochs')
     parser.add_option('-b', '--batch-size', dest='batchsize', default=6,
                       type='int', help='batch size')
@@ -222,6 +215,9 @@ if __name__ == '__main__':
         net.cuda()
         # cudnn.benchmark = True # faster convolutions, but more memory
 
+    dummy_input = torch.rand(1,3,256,256).cuda()
+    writer.add_graph(net,(dummy_input,))
+
     try:
         train_net(net=net,
                   epochs=args.epochs,
@@ -239,3 +235,5 @@ if __name__ == '__main__':
             sys.exit(0)
         except SystemExit:
             os._exit(0)
+    
+    # writer.close()

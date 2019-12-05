@@ -17,8 +17,6 @@ import densenet as dn
 from densenet import DenseNet3
 from focal_loss import FocalLoss
 import pdb
-# used for logging to TensorBoard
-# from tensorboard_logger import configure, log_value
 
 writer = SummaryWriter()
 
@@ -217,10 +215,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
     
     writer.add_scalar('train_loss', losses.avg, epoch)
     writer.add_scalar('train_acc', top1.avg, epoch)
-    # log to TensorBoard
-    # if args.tensorboard:
-        # log_value('train_loss', losses.avg, epoch)
-        # log_value('train_acc', top1.avg, epoch)
 
 def validate(val_loader, model, criterion, epoch):
     """Perform validation on the validation set"""
@@ -260,10 +254,6 @@ def validate(val_loader, model, criterion, epoch):
                       top1=top1))
 
     print(' * Prec@1 {top1.avg:.3f}'.format(top1=top1))
-    # log to TensorBoard
-    # if args.tensorboard:
-    #     log_value('val_loss', losses.avg, epoch)
-    #     log_value('val_acc', top1.avg, epoch)
     writer.add_scalar('val_loss', losses.avg, epoch)
     writer.add_scalar('val_acc', top1.avg, epoch)
     return top1.avg
@@ -298,9 +288,6 @@ class AverageMeter(object):
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 after 150 and 225 epochs"""
     lr = args.lr * (0.1 ** (epoch // 150)) * (0.1 ** (epoch // 225))
-    # log to TensorBoard
-    # if args.tensorboard:
-    #     log_value('learning_rate', lr, epoch)
     writer.add_scalar('learning_rate', lr, epoch)
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
