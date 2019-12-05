@@ -2,4 +2,9 @@
 *.bmp
 *.png
 
+# dataset
 ../densenet_dataset/
+
+# for tensorboard
+runs/
+*.pth

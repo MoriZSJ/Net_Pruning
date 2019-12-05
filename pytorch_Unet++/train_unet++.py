@@ -8,25 +8,32 @@ import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 from torch import optim
+from torch.utils.tensorboard import SummaryWriter
 import shutil
 from eval import eval_net
 from unet import UNet
 from utils import get_ids, split_ids, split_train_val, get_imgs_and_masks, batch
-from tensorboard_logger import configure,log_value
+# from tensorboard_logger import configure,log_value
 from tqdm import tqdm
 
 ####### set directory ###########
-dir_model = './fullmodel/'
-if not os.path.exists(dir_model):
-    os.makedirs(dir_model)
+##### 1. save for tensorboard ###
+directory = './runs/'
 ct = time.localtime(time.time())
-directory = "./bestcheckpoint/"
 directory = os.path.join(directory, "%04d-%02d-%02d, %02d:%02d:%02d_bce+dice/" %
                                                 (ct.tm_year, ct.tm_mon, ct.tm_mday, ct.tm_hour, ct.tm_min, ct.tm_sec))
 if not os.path.exists(directory):
     os.makedirs(directory)
-configurepath = directory
-configure(configurepath)
+writer = SummaryWriter(directory)
+
+
+#### 2. save model #####
+dir_model = './fullmodel/'
+if not os.path.exists(dir_model):
+    os.makedirs(dir_model)
+
+# configurepath = directory
+# configure(configurepath)
 
 best_dice = 0
 best_loss = 10
@@ -114,10 +121,12 @@ def train_net(net,
             optimizer.step()
 
         print('Epoch finished ! Loss: {}'.format(epoch_loss / i))
-
+    
         val_dice = eval_net(net, val, gpu)
         print('Validation Dice Coeff: {}'.format(val_dice))
-        log_value('val_dice', val_dice, (epoch+1))
+
+        writer.add_scalar('train_loss',epoch_loss/i,(epoch+1))
+        writer.add_scalar('val_dice', val_dice, (epoch+1))
 
 
         if save_cp:
@@ -153,8 +162,9 @@ def adjust_learning_rate(optimizer, epoch,epochs):
         lr = args.lr*0.001
 
     # log to TensorBoard
-    if args.tensorboard:
-        log_value('learning_rate', lr, epoch)
+    # if args.tensorboard:
+    #     log_value('learning_rate', lr, epoch)
+    writer.add_scalar('learning_rate', lr, epoch)
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
     return lr
@@ -184,7 +194,7 @@ def get_args():
                       default=False, help='load file model')
     parser.add_option('-s', '--scale', dest='scale', type='float',
                       default=0.5, help='downscaling factor of the images')
-    parser.add_option('--tensorboard',
+    parser.add_option('--tensorboard', default=True,
                     help='Log progress to TensorBoard', action='store_true')
 
     (options, args) = parser.parse_args()

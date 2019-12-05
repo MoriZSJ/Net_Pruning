@@ -63,6 +63,7 @@ parser.set_defaults(augment=False)
 best_prec1 = 0
 train_dirs = '/home/mori/Programming/Net_Pruning/densenet_dataset/train'
 val_dirs = '/home/mori/Programming/Net_Pruning/densenet_dataset/val'
+
 def main():
     global args, best_prec1
     args = parser.parse_args()
@@ -120,6 +121,9 @@ def main():
     # Use CUDA_VISIBLE_DEVICES=0,1 to specify which GPUs to use
     # model = torch.nn.DataParallel(model).cuda()
     model = model.cuda()
+    
+    dummy_input = torch.rand(20,3,200,200).cuda()
+    writer.add_graph(model,(dummy_input,))
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -162,7 +166,7 @@ def main():
             'best_prec1': best_prec1,
         }, is_best)
     print('Best accuracy: ', best_prec1)
-    writer.add_graph(model)  # image?
+    
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
