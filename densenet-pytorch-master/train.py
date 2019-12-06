@@ -51,7 +51,7 @@ parser.add_argument('--resume', default='', type=str,
                     help='path to latest checkpoint (default: none)')
 
 
-parser.add_argument('--name', default='DenseNet_focal_772_2', type=str,
+parser.add_argument('--name', default='DenseNet_focal_772_24', type=str,
                     help='name of experiment')
 parser.add_argument('--tensorboard',default=True,
                     help='Log progress to TensorBoard', action='store_true')

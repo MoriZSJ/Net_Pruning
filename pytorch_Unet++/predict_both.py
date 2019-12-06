@@ -1,3 +1,6 @@
+import sys
+sys.path.append("/home/mori/Programming/Net_Pruning/densenet-pytorch-master")
+print(sys.path)
 import argparse
 import os
 import time
@@ -8,16 +11,15 @@ import cv2
 from PIL import Image, ImageDraw, ImageFont
 import pdb
 from unet import UNet
-from utils import resize_and_crop, normalize, split_img_into_squares, hwc_to_chw, merge_masks, dense_crf
+from utils import resize_and_crop, normalize, split_img_into_squares, hwc_to_chw, merge_masks
+# from crf import dense_crf
 from utils import plot_img_and_mask
 import pdb
 from torchvision import transforms
 import densenet as dn
-#files = os.listdir('C:\\Users\\fs\\Desktop\\data27r\\')
-dirs = 'C:\\Users\\fs\\Desktop\\test327\\'
-dense12 = 'C:\\Users\\fs\\Desktop\\densenet-pytorch-master\\runs_k=12\\DenseNet_Unet_fs\\model_best.pth'
-dense24 = 'C:\\Users\\fs\\Desktop\\densenet-pytorch-master\\runs_k=24\\DenseNet_Unet_fs\\model_best.pth'
-#dirs = 'D:\\new\\test\\'    
+dirs = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/test_image_results/'   # test img folder
+dense12 = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/runs/DenseNet_focal_772_2_12/model_best.pth'
+# dense24 = 'C:\\Users\\fs\\Desktop\\densenet-pytorch-master\\runs_k=24\\DenseNet_Unet_fs\\model_best.pth'
 files = os.listdir(dirs)
 for index,value in enumerate(files):
     files[index] = dirs + files[index]
@@ -74,7 +76,7 @@ def predict_img(net,
         st1 = time.time()
         end = st1 - st
         #outend = time.clock()
-        print(' 6 running time: %s seconds ' %(end))
+        print(' --------------------unet running time: %s seconds ' %(end))
         left_probs = output_left.squeeze(0)
         right_probs = output_right.squeeze(0)
         print(' squeeze running time: %s seconds ' %(( time.time() -pst)))
@@ -127,12 +129,12 @@ def predict_img(net,
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', '-m', default='MODEL.pth',
+    parser.add_argument('--model', '-m', default='/home/mori/Programming/Net_Pruning/pytorch_Unet++/runs/2019-12-05, 15:15:28_bce+dice/dice_best.pth',
                         metavar='FILE',
                         help="Specify the file in which is stored the model"
                              " (default : 'MODEL.pth')")
     parser.add_argument('--input', '-i', metavar='INPUT', nargs='+',
-                        help='filenames of input images', required=True)
+                        help='filenames of input images', required=False)
 
     parser.add_argument('--output', '-o', metavar='INPUT', nargs='+',
                         help='filenames of ouput images')
@@ -159,13 +161,14 @@ def get_args():
                         default=0.5)
     parser.add_argument('--scale', '-s', type=float,
                         help="Scale factor for the input images",
-                        default=0.5)
+                        default=0.5)  # test-327: 1
     parser.add_argument('--growth', default=12, type=int,
                     help='number of new channels per layer (default: 12)')
     parser.add_argument('--no-bottleneck', dest='bottleneck', action='store_false',
                     help='To not use bottleneck block')
     parser.set_defaults(bottleneck=True)   
-    return parser.parse_args(["-i","1.jpg"])
+    return parser.parse_args()
+    # return parser.parse_args(["-i","1.jpg"])
 
 def get_output_filenames(args):
     in_files = files
@@ -241,7 +244,7 @@ if __name__ == "__main__":
         net.load_state_dict(torch.load(args.model, map_location='cpu'))
         print("Using CPU version of the net, this may be very slow")
 
-    densenet = dn.DenseNet3(100, 4, args.growth, bottleneck=args.bottleneck,  small_inputs = False)
+    densenet = dn.DenseNet3(16, 3, args.growth, bottleneck=args.bottleneck,  small_inputs = False)
     densenet = densenet.cuda()
 
     if args.usedense:
@@ -326,7 +329,7 @@ if __name__ == "__main__":
             contours, hierarchy = cv2.findContours(np.array(mask).astype(np.uint8),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)  
             print('The whole suspicious contours: %s' %(len(contours)))
             print(' findContours ------------------------------->running time: %s seconds ' %(( time.clock() -start)))
-            classnum = [0,0,0,0]
+            classnum = [0,0,0]
             #pdb.set_trace()
             if args.describe:
                 desmask = Image.fromarray((mask * 255).astype(np.uint8))
@@ -368,22 +371,26 @@ if __name__ == "__main__":
                     input = torch.autograd.Variable(input)
                     #print(input)
                     #pdb.set_trace()
-
+                    torch.cuda.synchronize()
+                    dens = time.time()
                     output = densenet(input)
-                    #print(' densenet ------------------------------->running time: %s seconds ' %(( time.clock() -start)))
+                    torch.cuda.synchronize()
+                    dene = time.time()
+                    dentime = dene - dens
+                    print(' densenet ------------------------------->running time: %s seconds ' %(( dentime)))
                     #print(output)
                     x= torch.max(output,1)
                     classnum[x[1]] += 1
                     
                     if args.describe:
                         draw.text((midx, midy),str(classes[x[1]]),fill=(255,0,0), font=ttfront)#文字位置，内容，字体
-                    if (classnum[1] >= 3):
-                        break
+                    # if (classnum[1] >= 3):
+                    #     break
 
                     #print('Prediction: ', str(classes[x[1]]))
                     densemask[midy-patchscale:midy+patchscale, midx-patchscale:midx+patchscale] = 1
             
-            print('flaw area: %s ,  bubble area:  %s ,  granule area: %s ,  other: %s ' %(classnum[1],classnum[0],classnum[2],classnum[3]))
+            print('flaw area: %s ,  bubble area:  %s ,  other area: %s ' %(classnum[1],classnum[0],classnum[2]))
 
         
         #mask[int(height*2/5):int(height),int(width/2):int(width)] = mask2

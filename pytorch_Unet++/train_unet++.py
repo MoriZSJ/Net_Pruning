@@ -36,7 +36,7 @@ best_loss = 10
 
 
 def train_net(net,
-              epochs=5,
+              epochs,
               batch_size=1,
               lr=0.1,
               val_percent=0.05,
@@ -175,7 +175,7 @@ def save_checkpoint(state, dice_best, loss_best, filename='checkpoint.pth'):
 
 def get_args():
     parser = OptionParser()
-    parser.add_option('-e', '--epochs', dest='epochs', default=1, type='int',
+    parser.add_option('-e', '--epochs', dest='epochs', default=100, type='int',
                       help='number of epochs')
     parser.add_option('-b', '--batch-size', dest='batchsize', default=6,
                       type='int', help='batch size')
@@ -227,7 +227,7 @@ if __name__ == '__main__':
                   img_scale=args.scale)
 
         torch.save(net,
-                    dir_model + 'CP{}.pth'.format(0))
+                    dir_model + 'CP{}.pth'.format('100epoch'))
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         print('Saved interrupt')
