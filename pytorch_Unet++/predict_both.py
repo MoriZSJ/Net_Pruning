@@ -17,12 +17,14 @@ from utils import plot_img_and_mask
 import pdb
 from torchvision import transforms
 import densenet as dn
+
 dirs = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/test_image_results/'   # test img folder
 dense12 = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/runs/DenseNet_focal_772_2_12/model_best.pth'
 # dense24 = 'C:\\Users\\fs\\Desktop\\densenet-pytorch-master\\runs_k=24\\DenseNet_Unet_fs\\model_best.pth'
 files = os.listdir(dirs)
 for index,value in enumerate(files):
     files[index] = dirs + files[index]
+
 def predict_img(net,
                 full_img,
                 scale_factor=0.5,

@@ -1,6 +1,7 @@
 # all images
 *.bmp
 *.png
+0770/
 
 # dataset
 ../densenet_dataset/
