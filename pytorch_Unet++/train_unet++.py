@@ -16,8 +16,8 @@ from utils import get_ids, split_ids, split_train_val, get_imgs_and_masks, batch
 from tqdm import tqdm
 
 ####### set directory ###########
-##### 1. save for tensorboard ###
-directory = 'runs/'
+##### 1. for tensorboard ###
+directory = 'runs/200epoch'
 ct = time.localtime(time.time())
 directory = os.path.join(directory, "%04d-%02d-%02d, %02d:%02d:%02d_bce+dice/" %
                                                 (ct.tm_year, ct.tm_mon, ct.tm_mday, ct.tm_hour, ct.tm_min, ct.tm_sec))
@@ -175,7 +175,7 @@ def save_checkpoint(state, dice_best, loss_best, filename='checkpoint.pth'):
 
 def get_args():
     parser = OptionParser()
-    parser.add_option('-e', '--epochs', dest='epochs', default=100, type='int',
+    parser.add_option('-e', '--epochs', dest='epochs', default=200, type='int',
                       help='number of epochs')
     parser.add_option('-b', '--batch-size', dest='batchsize', default=6,
                       type='int', help='batch size')
@@ -197,6 +197,14 @@ if __name__ == '__main__':
     args = get_args()
 
     net = UNet(n_channels=3, n_classes=1)
+    if args.gpu:
+        net.cuda()
+        # cudnn.benchmark = True # faster convolutions, but more memory
+
+
+    ######## model visualization in tensorboard ##############3
+    dummy_input = torch.rand(1,3,256,256).cuda()
+    writer.add_graph(net,(dummy_input,))
 
     if args.load:
         if os.path.isfile(args.load):
@@ -211,13 +219,6 @@ if __name__ == '__main__':
         else:
             print("=> no checkpoint found at '{}'".format(args.load))
 
-    if args.gpu:
-        net.cuda()
-        # cudnn.benchmark = True # faster convolutions, but more memory
-
-    dummy_input = torch.rand(1,3,256,256).cuda()
-    writer.add_graph(net,(dummy_input,))
-
     try:
         train_net(net=net,
                   epochs=args.epochs,
@@ -227,7 +228,7 @@ if __name__ == '__main__':
                   img_scale=args.scale)
 
         torch.save(net,
-                    dir_model + 'CP{}.pth'.format('100epoch'))
+                    dir_model + 'CP{}.pth'.format('200epoch'))
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         print('Saved interrupt')

@@ -1,43 +1,43 @@
 import sys
 sys.path.append("/home/mori/Programming/Net_Pruning/densenet-pytorch-master")
-print(sys.path)
+# print(sys.path)
 import argparse
 import os
 import time
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torchvision import transforms
 import cv2
 from PIL import Image, ImageDraw, ImageFont
 import pdb
+from utils import resize_and_crop, normalize, split_img_into_squares, hwc_to_chw, merge_masks, plot_img_and_mask
 from unet import UNet
-from utils import resize_and_crop, normalize, split_img_into_squares, hwc_to_chw, merge_masks
-# from crf import dense_crf
-from utils import plot_img_and_mask
-import pdb
-from torchvision import transforms
 import densenet as dn
+# from crf import dense_crf
 
-dirs = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/test_image_results/'   # test img folder
+
+########## set path for testset and network model ##############
+dirs = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/test/'   # test img folder
 dense12 = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/runs/DenseNet_focal_772_2_12/model_best.pth'
-# dense24 = 'C:\\Users\\fs\\Desktop\\densenet-pytorch-master\\runs_k=24\\DenseNet_Unet_fs\\model_best.pth'
+dense24 = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/runs/DenseNet_focal_772_24/model_best.pth'
 files = os.listdir(dirs)
 for index,value in enumerate(files):
     files[index] = dirs + files[index]
+
 
 def predict_img(net,
                 full_img,
                 scale_factor=0.5,
                 out_threshold=0.5,
                 use_gpu=False):
-    pst = time.time()
+    pst = time.perf_counter()
     net.eval()
-
     #print(' 0 running time: %s seconds ' %(( time.clock() -pst)))
 
 
     img_height = full_img.size[1]
-    print(img_height)
+    # print(img_height)
     img_width = full_img.size[0]
 
     img = resize_and_crop(full_img, scale=scale_factor)
@@ -49,12 +49,10 @@ def predict_img(net,
     #print(' 2 running time: %s seconds ' %(( time.clock() -pst)))
 
     left_square, right_square = split_img_into_squares(img)
-
     left_square = hwc_to_chw(left_square)
     right_square = hwc_to_chw(right_square)
 
     #print(' 3 running time: %s seconds ' %(( time.clock() -pst)))
-
 
     X_left = torch.from_numpy(left_square).unsqueeze(0)
     X_right = torch.from_numpy(right_square).unsqueeze(0)
@@ -71,17 +69,16 @@ def predict_img(net,
 
     with torch.no_grad():
         torch.cuda.synchronize()
-        st = time.time()
+        st = time.perf_counter()
         output_left = net(X_left)
         output_right = net(X_right)
         torch.cuda.synchronize()
-        st1 = time.time()
-        end = st1 - st
+        st1 = time.perf_counter()
         #outend = time.clock()
-        print(' --------------------unet running time: %s seconds ' %(end))
+        print(' Unet++ --------------------> running time: %s seconds ' %(st1-st))
         left_probs = output_left.squeeze(0)
         right_probs = output_right.squeeze(0)
-        print(' squeeze running time: %s seconds ' %(( time.time() -pst)))
+        # print(' squeeze running time: %s seconds ' %((time.perf_counter()-st1)))
 
         if (left_probs.shape[1] != img_height) :
             tf = transforms.Compose(
@@ -93,35 +90,33 @@ def predict_img(net,
             )
             left_probs = tf(left_probs.cpu())
             right_probs = tf(right_probs.cpu())
-            print("11111")
-        #print(' 8running time: %s seconds ' %(( time.clock() -pst)))
+            print("Transform done!")
+        #print(' 8  running time: %s seconds ' %(( time.clock() -pst)))
         #lstart = time.clock()
         
         #left_probs.cpu()
         #print(' transforms running time: %s seconds ' %(( time.time() -pst)))
-        st = time.time()
+        st = time.perf_counter()
         left_mask_np = left_probs.squeeze().cpu().numpy()
-        end1 = time.time() - st
+        end1 = time.perf_counter() - st
         #print(left_probs.shape)
         #pdb.set_trace()
-        print(' tonumpy1 running time: %s seconds ' %(end1))
-        st = time.time()
+        # print(' tonumpy1 running time: %s seconds ' %(end1))
+        st = time.perf_counter()
         right_mask_np = right_probs.squeeze().cpu().numpy()
-        end2 = time.time() - st
-        print(' tonumpy2 running time: %s seconds ' %(end2))
-    #pdb.set_trace()
-    full_mask = merge_masks(left_mask_np, right_mask_np, img_width)
-    #print(type(full_mask))
-    
-    #print((full_mask.size))
-    print(' 9 running time: %s seconds ' %(( time.time() -pst)))
+        end2 = time.perf_counter() - st
+        # print(' tonumpy2 running time: %s seconds ' %(end2))
 
-            #pdb.set_trace()
+    full_mask = merge_masks(left_mask_np, right_mask_np, img_width)
+    
+    # print(' 9 running time: %s seconds ' %(( time.perf_counter() -pst)))
+
+    #pdb.set_trace()
     full_mask[full_mask >= out_threshold] = 1
     full_mask[full_mask < out_threshold] = 0
-        #-------------------------------------------------------------------------------
+    #-------------------------------------------------------------------------------
 
-        #newmask = dense_crf(np.array(full_img).astype(np.uint8), full_mask)
+    #newmask = dense_crf(np.array(full_img).astype(np.uint8), full_mask)
     #lend = time.clock()
     #print(' running time: %s seconds ' %((lend-pst)))
     #pdb.set_trace()
@@ -131,10 +126,10 @@ def predict_img(net,
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', '-m', default='/home/mori/Programming/Net_Pruning/pytorch_Unet++/runs/2019-12-05, 15:15:28_bce+dice/dice_best.pth',
+    parser.add_argument('--model', '-m', default='/home/mori/Programming/Net_Pruning/pytorch_Unet++/runs/2019-12-07, 09:48:25_bce+dice/dice_best.pth',
                         metavar='FILE',
                         help="Specify the file in which is stored the model"
-                             " (default : 'MODEL.pth')")
+                             " (default : 'dice_best.pth')")     # unet model path
     parser.add_argument('--input', '-i', metavar='INPUT', nargs='+',
                         help='filenames of input images', required=False)
 
@@ -143,17 +138,17 @@ def get_args():
     parser.add_argument('--cpu', '-c', action='store_true',
                         help="Do not use the cuda version of the net",
                         default=False)
-    parser.add_argument('--viz', '-v', action='store_true',
+    parser.add_argument('--viz', '-v', action='store_true',     
                         help="Visualize the images as they are processed",
                         default=False)
     parser.add_argument('--no-save', '-n', action='store_true',
                         help="Do not save the output masks",
                         default=False)
     parser.add_argument('--usedense', '-r', action='store_true',
-                        help=" use densenet k=12(False to k=24)",
+                        help=" use densenet",
                         default=True)
     parser.add_argument('--best', '-b', action='store_true', dest = 'best',
-                        help=" use densenet k=12(False to k=24)",
+                        help=" use densenet",
                         default=True)
     parser.add_argument('--describe', '-d', action='store_true',
                         help=" whether add the describle text into mask",
@@ -203,9 +198,10 @@ def get_describe_filenames(args):
         out_files = args.output
 
     return out_files
+
+
 def mask_to_image(mask):
     return Image.fromarray((mask * 255).astype(np.uint8))
-
 
 
 
@@ -216,7 +212,7 @@ if __name__ == "__main__":
 
     if args.describe:
         des_files = get_describe_filenames(args)
-        print("Will output images with descriptors !")
+        print("Output images with descriptors!")
         patchscale = 100
         dense_normalize = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
                                      std=[x/255.0 for x in [63.0, 62.1, 66.7]])
@@ -224,18 +220,18 @@ if __name__ == "__main__":
 
     net = UNet(n_channels=3, n_classes=1)
     
-    print("Loading model {}".format(args.model))
+    # print("Loading model {}".format(args.model))
 
     if not args.cpu:
-        print("Using CUDA version of the net, prepare your GPU !")
+        print("Using CUDA.....")
         net.cuda()
         if args.best:
-            print("=> loading checkpoint '{}'".format(args.model))
+            # print("=> loading checkpoint '{}'".format(args.model))
             checkpoint = torch.load(args.model)
             args.start_epoch = checkpoint['epoch']
             #best_prec1 = checkpoint['best_prec1']
             net.load_state_dict(checkpoint['state_dict'])
-            print("=> loaded checkpoint '{}' (epoch {})"
+            print("=> loaded Unet++ checkpoint '{}' (epoch {})"
                     .format(args.model, checkpoint['epoch']))
         else:
             print("=> not best model ")
@@ -252,18 +248,18 @@ if __name__ == "__main__":
     if args.usedense:
         if args.growth == 12:
             if os.path.isfile(dense12):
-                print("=> loading checkpoint '{}'".format(dense12))
+                # print("=> loading checkpoint '{}'".format(dense12))
                 checkpoint = torch.load(dense12)
                 args.start_epoch = checkpoint['epoch']
                 #best_prec1 = checkpoint['best_prec1']
                 densenet.load_state_dict(checkpoint['state_dict'])
-                print("=> loaded checkpoint '{}' (epoch {})"
+                print("=> loaded Densenet checkpoint '{}' (epoch {})"
                         .format(dense12, checkpoint['epoch']))
             else:
                 print("=> no checkpoint found at '{}'".format(dense12))
-        elif  args.growth == 24:
-            if os.path.isfile(dense12):
-                print("=> loading checkpoint '{}'".format(dense24))
+        elif args.growth == 24:
+            if os.path.isfile(dense24):
+                # print("=> loading checkpoint '{}'".format(dense24))
                 checkpoint = torch.load(dense24)
                 args.start_epoch = checkpoint['epoch']
                 #best_prec1 = checkpoint['best_prec1']
@@ -273,16 +269,17 @@ if __name__ == "__main__":
             else:
                 print("=> no checkpoint found at '{}'".format(dense24))
 
-    print("Model loaded !")
+    print("Load succeed!")
 
     classes = []
     with open('classes.txt', 'r') as list_:
         for line in list_:
             classes.append(line.rstrip('\n'))
 
+    """ classification with Unet++, get patches  """
     for i, fn in enumerate(in_files):
         print("\nPredicting image {} ...".format(fn))
-        start = time.clock()
+        start = time.perf_counter()
         img = Image.open(fn)
         if img.size[0] < img.size[1]:
             print("Error: image height larger than the width")
@@ -308,7 +305,7 @@ if __name__ == "__main__":
                            use_gpu=not args.cpu)
         mask[int(height*1/5):int(height),0:int(width)] = tmpmask
 
-        print(' unet ------------------------------->running time: %s seconds ' %(( time.clock() -start)))
+        # print(' Unet++ -------------------------------> running time: %s seconds ' %(( time.perf_counter() -start)))
         #tmp = time.clock()
         # mask2 = predict_img(net=net,
         #                    full_img=cimg2,
@@ -326,11 +323,12 @@ if __name__ == "__main__":
         
 
         #---------------------------------patch_crf_function
+        """ segmentation with Densenet"""
         if args.usedense:
             densenet.eval()
             contours, hierarchy = cv2.findContours(np.array(mask).astype(np.uint8),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)  
             print('The whole suspicious contours: %s' %(len(contours)))
-            print(' findContours ------------------------------->running time: %s seconds ' %(( time.clock() -start)))
+            print('find Contours ------------------------------->running time: %s seconds ' %((time.perf_counter()-start)))
             classnum = [0,0,0]
             #pdb.set_trace()
             if args.describe:
@@ -338,7 +336,7 @@ if __name__ == "__main__":
                 if desmask.mode != 'RGB':
                     desmask = desmask.convert('RGB')
                 draw = ImageDraw.Draw(desmask)
-                ttfront = ImageFont.load_default()#字体大小
+                ttfront = ImageFont.load_default()  # 加载默认字体
             
             if (len(contours) != 0):
                 densemask = np.zeros((int(mask.shape[0]),int(mask.shape[1])), np.uint8)
@@ -355,9 +353,7 @@ if __name__ == "__main__":
 
                     if (densemask[midy,midx] == 1):
                         continue
-                
-
-                    
+         
                     patch_img = img.crop((midx-patchscale,midy-patchscale,midx+patchscale,midy+patchscale))
                     # patch_mask = mask[(midy-patchscale):(midy+patchscale),(midx-patchscale):(midx+patchscale)]
                     # patch_mask1 = mask_to_image(patch_mask)
@@ -374,18 +370,18 @@ if __name__ == "__main__":
                     #print(input)
                     #pdb.set_trace()
                     torch.cuda.synchronize()
-                    dens = time.time()
+                    dens = time.perf_counter()
                     output = densenet(input)
                     torch.cuda.synchronize()
-                    dene = time.time()
-                    dentime = dene - dens
-                    print(' densenet ------------------------------->running time: %s seconds ' %(( dentime)))
+                    dene = time.perf_counter()
+                    # dentime = dene - dens
+                    print(' densenet -------------------------------> running time: %s seconds ' %((dene - dens)))
                     #print(output)
                     x= torch.max(output,1)
                     classnum[x[1]] += 1
                     
                     if args.describe:
-                        draw.text((midx, midy),str(classes[x[1]]),fill=(255,0,0), font=ttfront)#文字位置，内容，字体
+                        draw.text((midx, midy),str(classes[x[1]]),fill=(255,255,0), font=ttfront)#文字位置，内容，字体
                     # if (classnum[1] >= 3):
                     #     break
 
@@ -396,7 +392,7 @@ if __name__ == "__main__":
 
         
         #mask[int(height*2/5):int(height),int(width/2):int(width)] = mask2
-        end = time.clock()
+        end = time.perf_counter()
         print('Total running time: %s Seconds'  %((end-start)))
         if args.viz:
             print("Visualizing results for image {}, close to continue ...".format(fn))

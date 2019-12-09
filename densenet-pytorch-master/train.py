@@ -20,7 +20,6 @@ import pdb
 
 writer = SummaryWriter()
 
-
 parser = argparse.ArgumentParser(description='PyTorch DenseNet Training')
 parser.add_argument('--epochs', default=300, type=int,
                     help='number of total epochs to run')
@@ -49,8 +48,6 @@ parser.add_argument('--no-bottleneck', dest='bottleneck', action='store_false',
                     help='To not use bottleneck block')
 parser.add_argument('--resume', default='', type=str,
                     help='path to latest checkpoint (default: none)')
-
-
 parser.add_argument('--name', default='DenseNet_focal_772_24', type=str,
                     help='name of experiment')
 parser.add_argument('--tensorboard',default=True,
@@ -67,10 +64,11 @@ def main():
     args = parser.parse_args()
     # if args.tensorboard: configure("runs/%s"%(args.name))
     
-    # Data loading code
+    # Data loading code 
     normalize = transforms.Normalize(mean=[x/255.0 for x in [125.3, 123.0, 113.9]],
                                      std=[x/255.0 for x in [63.0, 62.1, 66.7]])
     
+    # Data augmentation 
     if args.augment:
         transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
@@ -83,12 +81,14 @@ def main():
             transforms.ToTensor(),
             normalize,
             ])
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        normalize
-        ])
+
+    # transform_test = transforms.Compose([
+    #     transforms.ToTensor(),
+    #     normalize
+    #     ])
     #normalize = transforms.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])
 
+    # load Data 
     train_dataset = datasets.ImageFolder(
         train_dirs,
         transform_train
@@ -120,6 +120,7 @@ def main():
     # model = torch.nn.DataParallel(model).cuda()
     model = model.cuda()
     
+    # for network visualization in tensorboard
     dummy_input = torch.rand(20,3,200,200).cuda()
     writer.add_graph(model,(dummy_input,))
 
@@ -139,7 +140,7 @@ def main():
     cudnn.benchmark = True
 
     # define loss function (criterion) and optimizer
-    #criterion = nn.CrossEntropyLoss().cuda()
+    # criterion = nn.CrossEntropyLoss().cuda()
     criterion = FocalLoss().cuda()
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
@@ -178,7 +179,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
     end = time.time()
     for i, (input, target) in enumerate(train_loader):
-        #pdb.set_trace()
+        # pdb.set_trace()
         target = target.cuda(async=True)
         input = input.cuda()
         input_var = torch.autograd.Variable(input)
@@ -186,9 +187,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # compute output
         output = model(input_var)
-        #pdb.set_trace()
-        #print(output)
-        #print(target_var)
+        # pdb.set_trace()
         loss = criterion(output, target_var)
 
         # measure accuracy and record loss
@@ -285,6 +284,8 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+        
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 after 150 and 225 epochs"""
     lr = args.lr * (0.1 ** (epoch // 150)) * (0.1 ** (epoch // 225))
