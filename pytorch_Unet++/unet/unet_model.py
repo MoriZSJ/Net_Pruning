@@ -78,3 +78,14 @@ class UNet(nn.Module):
        x = self.up4(x, x0_3, x0_0)
        x = self.outc(x)
        return F.sigmoid(x)
+
+if __name__ == "__main__":
+    img = torch.rand(1,3,256,256)
+    gt = torch.rand(1,1,256,256)
+    model = UNet(n_channels=3, n_classes=1)
+    result = model(img)
+    criterion = torch.nn.BCELoss() 
+    loss = criterion(result.squeeze(), gt.squeeze())
+    loss.backward()
+    print(model.up0_2.conv.conv[0].weight.grad)
+    print(loss)

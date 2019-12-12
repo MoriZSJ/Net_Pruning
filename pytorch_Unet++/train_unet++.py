@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 ####### set directory ###########
 ##### 1. for tensorboard ###
-directory = 'runs/200epoch'
+directory = 'runs/test'
 ct = time.localtime(time.time())
 directory = os.path.join(directory, "%04d-%02d-%02d, %02d:%02d:%02d_bce+dice/" %
                                                 (ct.tm_year, ct.tm_mon, ct.tm_mday, ct.tm_hour, ct.tm_min, ct.tm_sec))
