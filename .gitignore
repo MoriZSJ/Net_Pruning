@@ -1,6 +1,9 @@
 # dataset
 densenet_dataset/
 
+# distiller package
+# distiller/
+
 # cache 
 *.pyc
 
