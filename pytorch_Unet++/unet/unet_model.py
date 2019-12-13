@@ -1,11 +1,11 @@
 # full assembly of the sub-parts to form the complete net
 
+'''
+####Unet模型
 import torch.nn.functional as F
 
 from .unet_parts import *
 
-'''
-####Unet模型
 class UNet(nn.Module):
     def __init__(self, n_channels, n_classes):
         super(UNet, self).__init__()
