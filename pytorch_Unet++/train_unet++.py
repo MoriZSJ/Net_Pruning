@@ -56,16 +56,20 @@ def train_net(net,
     print("ids:{}".format(ids))
     iddataset = split_train_val(ids, val_percent) # 按给定比例划分打乱的数据集
 
+    ###### count parameters  ############
+    paras = sum([p.data.nelement() for p in net.parameters()]) 
+
     print('''
     Starting training:
         Epochs: {}
+        Parameters: {}
         Batch size: {}
         Learning rate: {}
         Training size: {}
         Validation size: {}
         Checkpoints: {}
         CUDA: {}
-    '''.format(epochs, batch_size, lr, len(iddataset['train']),
+    '''.format(epochs, paras, batch_size, lr, len(iddataset['train']),
                len(iddataset['val']), str(save_cp), str(gpu)))
 
     N_train = len(iddataset['train'])

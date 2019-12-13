@@ -1,8 +1,7 @@
 # dataset
 densenet_dataset/
-
-# distiller package
-# distiller/
+data.cifar10/
+distiller/
 
 # cache 
 *.pyc
