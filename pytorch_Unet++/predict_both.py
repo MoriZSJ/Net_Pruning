@@ -1,5 +1,6 @@
 import sys
-sys.path.append("/home/mori/Programming/Net_Pruning/densenet-pytorch-master")
+sys.path.append('/home/mori/Programming/Net_Pruning/densenet-pytorch-master')
+# sys.path.append('/home/mori/Programming/unet++_official')
 # print(sys.path)
 import argparse
 import os
@@ -12,13 +13,15 @@ import cv2
 from PIL import Image, ImageDraw, ImageFont
 import pdb
 from utils import resize_and_crop, normalize, split_img_into_squares, hwc_to_chw, merge_masks, plot_img_and_mask
-from unet import UNet
+from unet import NestedUNet, UNet
 import densenet as dn
-# from crf import dense_crf
+
 
 
 ########## set path for testset and network model ##############
-dirs = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/test/'   # test img folder
+# test img folder
+dirs = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/test/' 
+
 dense12 = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/runs/DenseNet_focal_772_2_12/model_best.pth'
 dense24 = '/home/mori/Programming/Net_Pruning/densenet-pytorch-master/runs/DenseNet_focal_772_24/model_best.pth'
 files = os.listdir(dirs)
@@ -39,7 +42,7 @@ def predict_img(net,
     img_height = full_img.size[1]
     # print(img_height)
     img_width = full_img.size[0]
-
+    # print(full_img.size)  # 2048,1229
     img = resize_and_crop(full_img, scale=scale_factor)
     #pdb.set_trace()
     #print(' 1 running time: %s seconds ' %(( time.clock() -pst)))
@@ -47,8 +50,9 @@ def predict_img(net,
     img = normalize(img)
 
     #print(' 2 running time: %s seconds ' %(( time.clock() -pst)))
-
+    # print(img.shape)   # 614,1024,3
     left_square, right_square = split_img_into_squares(img)
+    # print(right_square.shape)     # 614,614,3
     left_square = hwc_to_chw(left_square)
     right_square = hwc_to_chw(right_square)
 
@@ -70,6 +74,7 @@ def predict_img(net,
     with torch.no_grad():
         torch.cuda.synchronize()
         st = time.perf_counter()
+        # print(X_left.shape)   # 1,3,614,614
         output_left = net(X_left)
         output_right = net(X_right)
         torch.cuda.synchronize()
@@ -126,13 +131,14 @@ def predict_img(net,
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', '-m', default='/home/mori/Programming/Net_Pruning/pytorch_Unet++/runs/2019-12-07, 09:48:25_bce+dice/dice_best.pth',
+    # unet model path (with dice_best.pth)
+    #### to change 
+    parser.add_argument('--model', '-m', default='/home/mori/Programming/Net_Pruning/pytorch_Unet++/runs/unet++/2019-12-19, 17:22:45_bce+dice/dice_best.pth',
                         metavar='FILE',
                         help="Specify the file in which is stored the model"
-                             " (default : 'dice_best.pth')")     # unet model path
+                             " (default : 'dice_best.pth')")     
     parser.add_argument('--input', '-i', metavar='INPUT', nargs='+',
                         help='filenames of input images', required=False)
-
     parser.add_argument('--output', '-o', metavar='INPUT', nargs='+',
                         help='filenames of ouput images')
     parser.add_argument('--cpu', '-c', action='store_true',
@@ -164,6 +170,10 @@ def get_args():
     parser.add_argument('--no-bottleneck', dest='bottleneck', action='store_false',
                     help='To not use bottleneck block')
     parser.set_defaults(bottleneck=True)   
+    ##### for official unet++
+    parser.add_argument('--input-channels', default=3, type=int,
+                         help='input channels')
+    parser.add_argument('--deepsupervision', default=0)
     return parser.parse_args()
     # return parser.parse_args(["-i","1.jpg"])
 
@@ -218,10 +228,14 @@ if __name__ == "__main__":
                                      std=[x/255.0 for x in [63.0, 62.1, 66.7]])
 
 
-    net = UNet(n_channels=3, n_classes=1)
-    
-    # print("Loading model {}".format(args.model))
 
+    ''' loading Unet model '''
+    ##### to change
+    # net = UNet(n_channels=3, n_classes=1)
+    net = NestedUNet(args)
+    # print("Loading model {}".format(args.model))
+    ''''''
+    
     if not args.cpu:
         print("Using CUDA.....")
         net.cuda()
@@ -234,7 +248,7 @@ if __name__ == "__main__":
             print("=> loaded Unet++ checkpoint '{}' (epoch {})"
                     .format(args.model, checkpoint['epoch']))
         else:
-            print("=> not best model ")
+            print("=> not best model. Suppose loading official Unet++ model...")
             net.load_state_dict(torch.load(args.model))
 
     else:

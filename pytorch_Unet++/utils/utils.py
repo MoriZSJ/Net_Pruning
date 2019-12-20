@@ -4,8 +4,8 @@ import numpy as np
 
 def get_square(img, pos):
     """Extract a left or a right square from ndarray shape : (H, W, C))"""
-    h = img.shape[0]
-    sw = img.shape[1]
+    h = img.shape[0]        # 614
+    sw = img.shape[1]       # 1024
 
     if sw <= h :
         return img
@@ -20,7 +20,6 @@ def get_square(img, pos):
         else:
             return img[:, h:]
 
-        
 
 def split_img_into_squares(img):
     return get_square(img, 0), get_square(img, 1)
@@ -32,7 +31,7 @@ def resize_and_crop(pilimg, scale=0.5, final_height=None):
     w = pilimg.size[0]
     h = pilimg.size[1]
     newW = int(w * scale)
-    newH = int(h * scale)
+    newH = int(h * scale)   # 614
 
     if not final_height:
         diff = 0

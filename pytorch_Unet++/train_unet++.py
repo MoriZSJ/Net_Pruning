@@ -1,5 +1,6 @@
 import sys
 import os
+import argparse
 import time
 from optparse import OptionParser
 import numpy as np
@@ -11,13 +12,13 @@ from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 import shutil
 from eval import eval_net
-from unet import UNet
+from unet import NestedUNet   # UNet
 from utils import get_ids, split_ids, split_train_val, get_imgs_and_masks, batch
 from tqdm import tqdm
 
 ####### set directory ###########
 ##### 1. for tensorboard ###
-directory = 'runs/test'
+directory = 'runs/unet++'
 ct = time.localtime(time.time())
 directory = os.path.join(directory, "%04d-%02d-%02d, %02d:%02d:%02d_bce+dice/" %
                                                 (ct.tm_year, ct.tm_mon, ct.tm_mday, ct.tm_hour, ct.tm_min, ct.tm_sec))
@@ -35,7 +36,8 @@ best_dice = 0
 best_loss = 10
 
 
-def train_net(net,
+def train_net(args,
+              net,
               epochs,
               batch_size=1,
               lr=0.1,
@@ -69,8 +71,9 @@ def train_net(net,
         Validation size: {}
         Checkpoints: {}
         CUDA: {}
+        Deepsupervision: {}
     '''.format(epochs, paras, batch_size, lr, len(iddataset['train']),
-               len(iddataset['val']), str(save_cp), str(gpu)))
+               len(iddataset['val']), str(save_cp), str(gpu),str(args.deepsupervision)))
 
     N_train = len(iddataset['train'])
     print("N_train:{}".format(N_train))
@@ -104,14 +107,24 @@ def train_net(net,
                 imgs = imgs.cuda()
                 true_masks = true_masks.cuda()
 
-            masks_pred = net(imgs)
-            masks_probs_flat = masks_pred.view(-1)
-
             true_masks_flat = true_masks.view(-1)
             true_masks_flat = true_masks_flat/255  # 归一化
+            
+            masks_pred = net(imgs)
 
-            loss = criterion(masks_probs_flat, true_masks_flat)
-            epoch_loss += loss.item()
+            #### unet++ with deepsupervision
+            if args.deepsupervision:
+                loss = 0
+                for output in masks_pred:
+                    masks_probs_flat = output.view(-1)
+                    loss += criterion(masks_probs_flat, true_masks_flat)
+                loss /= len(masks_pred)
+                epoch_loss += loss.item()
+
+            else:   
+                masks_probs_flat = masks_pred.view(-1)
+                loss = criterion(masks_probs_flat, true_masks_flat)
+                epoch_loss += loss.item()
 
             print('{0:.4f} --- loss: {1:.6f}'.format(i * batch_size / N_train, loss.item()))
             newloss=loss.item()
@@ -143,6 +156,8 @@ def train_net(net,
             }, dice_best, loss_best)
         
     print('Best dice: ', best_dice)
+
+    
 def adjust_learning_rate(optimizer, epoch,epochs):
     """Sets the learning rate to the initial LR decayed by 10 after 150 and 225 epochs"""
     # lr = args.lr * (0.1 ** (epoch // (20+epochs*0.1+0.12*epoch))*(4**((epoch // (20+epochs*0.1+0.12*epoch))//3)))
@@ -176,7 +191,7 @@ def save_checkpoint(state, dice_best, loss_best, filename='checkpoint.pth'):
     if loss_best:
         shutil.copyfile(filename,os.path.join(directory, 'loss_best.pth'))
 
-
+'''args for not official Unet++  '''
 def get_args():
     parser = OptionParser()
     parser.add_option('-e', '--epochs', dest='epochs', default=200, type='int',
@@ -193,20 +208,26 @@ def get_args():
                       default=0.5, help='downscaling factor of the images')
     parser.add_option('--tensorboard', default=True,
                     help='Log progress to TensorBoard', action='store_true')
-
+    ##### for official unet++
+    parser.add_option('--input-channels', default=3, type='int',
+                         help='input channels')
+    parser.add_option('-d','--deepsupervision', default=0)   
+    ##############
     (options, args) = parser.parse_args()
     return options
+
 
 if __name__ == '__main__':
     args = get_args()
 
-    net = UNet(n_channels=3, n_classes=1)
+    # net = UNet(n_channels=3, n_classes=1)
+    net = NestedUNet(args)
     if args.gpu:
         net.cuda()
         # cudnn.benchmark = True # faster convolutions, but more memory
 
 
-    ######## model visualization in tensorboard ##############3
+    ######## model visualization in tensorboard ##############
     dummy_input = torch.rand(1,3,256,256).cuda()
     writer.add_graph(net,(dummy_input,))
 
@@ -224,7 +245,8 @@ if __name__ == '__main__':
             print("=> no checkpoint found at '{}'".format(args.load))
 
     try:
-        train_net(net=net,
+        train_net(args = args,
+                  net=net,
                   epochs=args.epochs,
                   batch_size=args.batchsize,
                   lr=args.lr,
@@ -232,7 +254,7 @@ if __name__ == '__main__':
                   img_scale=args.scale)
 
         torch.save(net,
-                    dir_model + 'CP{}.pth'.format('200epoch'))
+                    dir_model + 'CP{}.pth'.format('Unet++_offcial200epoch'))
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         print('Saved interrupt')

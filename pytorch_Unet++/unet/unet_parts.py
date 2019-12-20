@@ -147,3 +147,25 @@ class outconv(nn.Module):
     def forward(self, x):
         x = self.conv(x)
         return x
+
+
+class concat(nn.Module):
+    def __init__(self):
+        super(concat, self).__init__()
+
+    def forward(self, x, dim=1):
+        # todo: dim conflict 
+        # print(len(x))
+        try:
+            x=torch.cat(x,dim=1)
+            # print("all good!")
+        except:
+            # print("not all the same")
+            diff = x[-2].size()[2] - x[-1].size()[2]
+            # print("diff: ",diff)
+            if diff < 0:
+                x[-2] = F.pad(x[-2], (diff//2, diff-diff//2, diff//2, diff-diff//2))           
+            elif diff > 0:
+                x[-1] = F.pad(x[-1], (diff//2, diff-diff//2, diff//2, diff-diff//2))       
+            x = torch.cat(x,dim=1)   
+        return x
