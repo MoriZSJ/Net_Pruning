@@ -188,7 +188,7 @@ class NestedUNet(nn.Module):
 
         else:
             output = self.final(x0_4)
-            return F.sigmoid(output)
+            return output
 
 
 

@@ -1,6 +1,6 @@
 import random
 import numpy as np
-
+import torch
 
 def get_square(img, pos):
     """Extract a left or a right square from ndarray shape : (H, W, C))"""
@@ -93,3 +93,19 @@ def rle_encode(mask_image):
     runs = np.where(pixels[1:] != pixels[:-1])[0] + 2
     runs[1::2] = runs[1::2] - runs[:-1:2]
     return runs
+
+
+def iou_score(output, target):      # output and target both normalized before
+    smooth = 1e-5
+
+    if torch.is_tensor(output):
+        output = torch.sigmoid(output).data.cpu().numpy()
+    if torch.is_tensor(target):
+        target = target.data.cpu().numpy()
+    output_ = output > 0.5
+    target_ = target > 0.5
+    intersection = (output_ & target_).sum()
+    union = (output_ | target_).sum()
+
+    return (intersection + smooth) / (union + smooth)
+

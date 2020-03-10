@@ -8,17 +8,20 @@ import pdb
 import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import optim
 from torch.utils.tensorboard import SummaryWriter
 import shutil
 from eval import eval_net
-from unet import NestedUNet   # UNet
-from utils import get_ids, split_ids, split_train_val, get_imgs_and_masks, batch
+from unet import NestedUNet,UNet
+from utils import get_ids, split_ids, split_train_val, get_imgs_and_masks, batch, iou_score
 from tqdm import tqdm
+
+
 
 ####### set directory ###########
 ##### 1. for tensorboard ###
-directory = 'runs/unet++'
+directory = 'runs/avoidDump' 
 ct = time.localtime(time.time())
 directory = os.path.join(directory, "%04d-%02d-%02d, %02d:%02d:%02d_bce+dice/" %
                                                 (ct.tm_year, ct.tm_mon, ct.tm_mday, ct.tm_hour, ct.tm_min, ct.tm_sec))
@@ -26,14 +29,15 @@ if not os.path.exists(directory):
     os.makedirs(directory)
 writer = SummaryWriter(directory)
 
-
 #### 2. save model #####
-dir_model = 'fullmodel/'
+dir_model = 'fullmodel/avoidDump'
 if not os.path.exists(dir_model):
     os.makedirs(dir_model)
 
 best_dice = 0
 best_loss = 10
+##################################
+
 
 
 def train_net(args,
@@ -94,6 +98,7 @@ def train_net(args,
         train = get_imgs_and_masks(iddataset['train'], dir_img, dir_mask, img_scale)
         val = get_imgs_and_masks(iddataset['val'], dir_img, dir_mask, img_scale)
 
+        best_iou = 0
         epoch_loss = 0
 
         for i, b in enumerate(batch(train, batch_size)):  # 手动分出batch
@@ -110,23 +115,31 @@ def train_net(args,
             true_masks_flat = true_masks.view(-1)
             true_masks_flat = true_masks_flat/255  # 归一化
             
-            masks_pred = net(imgs)
+            output = net(imgs)
+            masks_pred = F.sigmoid(output)
 
-            #### unet++ with deepsupervision
             if args.deepsupervision:
+                #### unet++ with deepsupervision
                 loss = 0
-                for output in masks_pred:
-                    masks_probs_flat = output.view(-1)
+                for mp in masks_pred:
+                    masks_probs_flat = mp.view(-1)
                     loss += criterion(masks_probs_flat, true_masks_flat)
                 loss /= len(masks_pred)
                 epoch_loss += loss.item()
-
             else:   
                 masks_probs_flat = masks_pred.view(-1)
                 loss = criterion(masks_probs_flat, true_masks_flat)
                 epoch_loss += loss.item()
 
+                ## todo: adjust iou 
+                iou = iou_score(output, true_masks/255)
+
+            ######## record the best iou
+            if iou > best_iou:
+                best_iou = iou
+
             print('{0:.4f} --- loss: {1:.6f}'.format(i * batch_size / N_train, loss.item()))
+            
             newloss=loss.item()
 
             optimizer.zero_grad()
@@ -134,12 +147,13 @@ def train_net(args,
             optimizer.step()
 
         print('Epoch finished ! Loss: {}'.format(epoch_loss / i))
-    
+        print('Best iou: {}'.format(best_iou))
         val_dice = eval_net(net, val, gpu)
         print('Validation Dice Coeff: {}'.format(val_dice))
 
         writer.add_scalar('train_loss',epoch_loss/i,(epoch+1))
         writer.add_scalar('val_dice', val_dice, (epoch+1))
+        writer.add_scalar('best iou', best_iou, (epoch+1))
 
 
         if save_cp:
@@ -194,7 +208,7 @@ def save_checkpoint(state, dice_best, loss_best, filename='checkpoint.pth'):
 '''args for not official Unet++  '''
 def get_args():
     parser = OptionParser()
-    parser.add_option('-e', '--epochs', dest='epochs', default=200, type='int',
+    parser.add_option('-e', '--epochs', dest='epochs', default=100, type='int',
                       help='number of epochs')
     parser.add_option('-b', '--batch-size', dest='batchsize', default=6,
                       type='int', help='batch size')
@@ -220,8 +234,8 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
 
-    # net = UNet(n_channels=3, n_classes=1)
-    net = NestedUNet(args)
+    net = UNet(n_channels=3, n_classes=1)
+    # net = NestedUNet(args)
     if args.gpu:
         net.cuda()
         # cudnn.benchmark = True # faster convolutions, but more memory
@@ -230,7 +244,9 @@ if __name__ == '__main__':
     ######## model visualization in tensorboard ##############
     dummy_input = torch.rand(1,3,256,256).cuda()
     writer.add_graph(net,(dummy_input,))
+    #########################################################
 
+    
     if args.load:
         if os.path.isfile(args.load):
             print("=> loading checkpoint '{}'".format(args.load))
@@ -254,7 +270,7 @@ if __name__ == '__main__':
                   img_scale=args.scale)
 
         torch.save(net,
-                    dir_model + 'CP{}.pth'.format('Unet++_offcial200epoch'))
+                    dir_model + 'CP{}.pth'.format('Unet+_200epoch'))
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         print('Saved interrupt')
